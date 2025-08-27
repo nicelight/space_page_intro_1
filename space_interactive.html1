@@ -1,0 +1,318 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Космос · IT · AI — Landing</title>
+  <style>
+    :root{--bg1:#0b1226;--bg2:#03060f}
+    html,body{height:100%;margin:0;background:radial-gradient(1200px 600px at 20% 30%, var(--bg1) 0%, #031224 40%, #000 100%);font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,'Helvetica Neue',Arial}
+    .wrap{position:fixed;inset:0;overflow:hidden}
+    canvas{display:block;width:100%;height:100%}
+
+    /* center UI */
+    .center{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:22;pointer-events:auto}
+    .card{pointer-events:auto;backdrop-filter:blur(6px);background:linear-gradient(135deg, rgba(11,14,36,0.6), rgba(20,24,44,0.4));border:1px solid rgba(255,255,255,0.06);padding:18px 28px;border-radius:18px;color:#fff;text-align:center;box-shadow:0 10px 30px rgba(0,0,0,0.6)}
+    .btn{font-weight:600;font-size:18px;padding:12px 28px;border-radius:14px;cursor:pointer;border:none;background:linear-gradient(90deg,#2b6cff55,#7b4bff33);color:#fff;touch-action:manipulation}
+    .sub{margin-top:12px;font-size:13px;color:rgba(255,255,255,0.65)}
+
+    /* white overlay during launch */
+    .overlay{position:absolute;inset:0;z-index:30;background:rgba(255,255,255,0);pointer-events:none;transition:background 0.1s linear}
+
+    /* final link */
+    .final{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:40;opacity:0;transition:opacity .8s ease,transform .8s cubic-bezier(.2,.9,.2,1);transform:translateY(8px);pointer-events:none}
+    .final.show{opacity:1;transform:translateY(0);pointer-events:auto}
+    .final a{display:inline-block;background:#fff;color:#111;padding:14px 22px;border-radius:12px;text-decoration:none;font-weight:600;box-shadow:0 20px 50px rgba(16,24,40,0.12)}
+
+    /* micro-signature */
+    .sig{position:fixed;left:14px;bottom:12px;color:rgba(255,255,255,0.35);font-size:12px;z-index:12}
+
+    /* hidden motion toggle (subtle) */
+    .motion-toggle{position:fixed;left:8px;bottom:8px;width:14px;height:14px;border-radius:50%;background:#fff;opacity:0.04;z-index:60;cursor:pointer;transition:opacity .18s, box-shadow .18s}
+    .motion-toggle.active{opacity:0.22;box-shadow:0 8px 24px rgba(0,0,0,0.45)}
+
+    @media (max-width:520px){.card{padding:14px 18px}.btn{padding:10px 18px}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <canvas id="stars"></canvas>
+
+    <div class="center" aria-hidden="false">
+      <div class="card" id="card">
+        <button id="launchBtn" class="btn" aria-label="Регистрация">Регистрация</button>
+        <div class="sub">Космос · IT · AI<br><small>Наведи курсор — звёзды откликнутся. Нажми «Регистрация», чтобы начать полёт внутрь.</small></div>
+      </div>
+    </div>
+
+    <div class="overlay" id="overlay"></div>
+
+    <div class="final" id="final">
+      <a href="https://github.com/nicelight/minihub-pio" target="_blank" rel="noreferrer">пройти тест</a>
+    </div>
+
+    <div class="sig">дизайн · космос · AI</div>
+
+    <!-- subtle motion blur checkpoint -->
+    <div id="motionToggle" class="motion-toggle" title="Toggle motion blur"></div>
+  </div>
+
+  <script>
+  (function(){
+    const canvas = document.getElementById('stars');
+    const ctx = canvas.getContext('2d');
+    let W = 0, H = 0, DPR = Math.max(1, window.devicePixelRatio || 1);
+
+    function resize(){
+      W = window.innerWidth; H = window.innerHeight;
+      canvas.width = Math.round(W * DPR);
+      canvas.height = Math.round(H * DPR);
+      canvas.style.width = W + 'px';
+      canvas.style.height = H + 'px';
+      ctx.setTransform(DPR,0,0,DPR,0,0);
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    // star field
+    const STAR_COUNT = Math.floor(Math.max(70, Math.min(220, (W*H)/50000)));
+    const stars = [];
+    const center = {x: W/2, y: H/2};
+    // --- launch / motion tuning parameters (easy to tweak) ---
+    const LAUNCH_DURATION = 3000; // ms — how long the "flight" animation lasts
+    const BASE_SCATTER = 60;      // base pixel offset applied to each star
+    const SCATTER_MULT = 220;     // additional scatter proportional to star.speed
+    const ACCEL_EXP = 2.6;        // exponent for acceleration (>1 => accelerating motion)
+    const ACCEL_TIMESCALE = 1.15; // global scale applied to accelerated scatter
+    // ---------------------------------------------------------
+
+    function rand(min,max){return Math.random()*(max-min)+min}
+
+    function pickPaletteTint(){
+      // pick tint direction: blue, yellow, pink
+      const p = Math.random();
+      if(p < 0.33) return 'blue';
+      if(p < 0.66) return 'yellow';
+      return 'pink';
+    }
+
+    function tintToColor(tint){
+      // return more saturated tint color so the effect is clearly visible
+      // values chosen to be close to white but noticeably tinted
+      if(tint === 'blue'){
+        const r = Math.round(rand(180,235));
+        const g = Math.round(rand(200,240));
+        const b = 255;
+        return [r,g,b];
+      }
+      if(tint === 'yellow'){
+        const r = 255;
+        const g = Math.round(rand(220,255));
+        const b = Math.round(rand(170,220));
+        return [r,g,b];
+      }
+      // pink
+      const r = 255;
+      const g = Math.round(rand(170,230));
+      const b = Math.round(rand(220,255));
+      return [r,g,b];
+    }
+
+    function rgbToCss(c, alpha=1){ return `rgba(${c[0]},${c[1]},${c[2]},${alpha})`; }
+
+    function initStars(){
+      stars.length = 0;
+      for(let i=0;i<STAR_COUNT;i++){
+        const x = Math.random()*W;
+        const y = Math.random()*H;
+        const size = rand(0.6,2.6);
+        const speed = rand(0.5,1.7);
+        // direction from center (normalized)
+        let dx = x - center.x, dy = y - center.y;
+        const dist = Math.sqrt(dx*dx+dy*dy) || 1;
+        dx /= dist; dy /= dist;
+        const tint = pickPaletteTint();
+        const interactRgb = tintToColor(tint);
+        stars.push({x,y,ox:x,oy:y,size,speed,dx,dy,tw:Math.random()*1.2+0.4, tint, interactRgb});
+      }
+    }
+
+    initStars();
+
+    // mouse
+    const mouse = {x:-9999,y:-9999,nx:0,ny:0};
+    window.addEventListener('mousemove', (e)=>{
+      mouse.x = e.clientX; mouse.y = e.clientY;
+      mouse.nx = (mouse.x / W - 0.5) * 2; // -1..1
+      mouse.ny = (mouse.y / H - 0.5) * 2; // -1..1
+    });
+    window.addEventListener('touchmove', (e)=>{
+      if(e.touches && e.touches[0]){
+        mouse.x = e.touches[0].clientX; mouse.y = e.touches[0].clientY;
+        mouse.nx = (mouse.x / W - 0.5) * 2;
+        mouse.ny = (mouse.y / H - 0.5) * 2;
+      }
+    }, {passive:true});
+
+    // motion blur checkpoint (hidden subtle toggle)
+    const motionToggle = document.getElementById('motionToggle');
+    let motionBlurEnabled = false;
+    motionToggle.addEventListener('click', ()=>{
+      motionBlurEnabled = !motionBlurEnabled;
+      motionToggle.classList.toggle('active', motionBlurEnabled);
+    });
+    // keyboard toggle for convenience
+    window.addEventListener('keydown', (e)=>{ if(e.key === 'm') { motionBlurEnabled = !motionBlurEnabled; motionToggle.classList.toggle('active', motionBlurEnabled); } });
+
+    // launch state
+    let launched = false;
+    let progress = 0; // 0..1
+    let launchStart = 0;
+
+    const overlay = document.getElementById('overlay');
+    const final = document.getElementById('final');
+    const launchBtn = document.getElementById('launchBtn');
+
+    function startLaunch(){
+      if(launched) return;
+      launched = true;
+      launchStart = performance.now();
+      // hide button visually
+      const card = document.getElementById('card');
+      card.style.opacity = 0; card.style.transform = 'scale(.98)';
+      card.style.transition = 'opacity .25s ease, transform .35s cubic-bezier(.2,.9,.2,1)';
+    }
+
+    launchBtn.addEventListener('click', startLaunch);
+    window.addEventListener('keydown', (e)=>{ if(e.key==='Enter') startLaunch(); });
+
+    // main render
+    function render(t){
+      // motion blur: instead of full clear, draw a semi-transparent rect to fade previous frame
+      if(motionBlurEnabled && launched){
+        // as progress grows, fade faster to avoid excessive washout
+        const fadeAlpha = 0.06 + progress * 0.14; // range ~0.06..0.2
+        ctx.fillStyle = `rgba(0,0,0,${fadeAlpha})`;
+        ctx.fillRect(0,0,W,H);
+      } else {
+        ctx.clearRect(0,0,W,H);
+      }
+
+      // update progress if launched
+      if(launched){
+        const dt = t - launchStart;
+        progress = Math.min(1, dt / LAUNCH_DURATION);
+        overlay.style.background = `rgba(255,255,255,${progress})`;
+        if(progress>=1){
+          final.classList.add('show');
+        }
+      }
+
+      // draw faint grid / tech lines
+      drawGrid(t);
+
+      // draw stars
+      for(const s of stars){
+        // parallax from mouse: larger stars move less
+        const parallaxFactor = (1 - Math.min(1, s.size/3)) * 30; // px
+        const px = (mouse.nx || 0) * parallaxFactor;
+        const py = (mouse.ny || 0) * parallaxFactor * 0.6;
+
+        // scatter during launch
+        const accelProgress = Math.pow(progress, ACCEL_EXP); // ease-in acceleration curve
+        const scatter = accelProgress * ACCEL_TIMESCALE * (BASE_SCATTER + SCATTER_MULT * s.speed);
+        const sx = s.ox + s.dx * scatter + px;
+        const sy = s.oy + s.dy * scatter + py;
+
+        const alpha = Math.max(0, Math.min(1, 0.7 + (1 - s.size/3) * 0.7 - progress*0.6));
+        const scale = 1 + Math.pow(progress, 1.6) * (1.6 + s.size);
+
+        const r = s.size * scale;
+
+        // twinkle base
+        const tw = 0.6 + 0.4 * Math.sin((t * 0.002 + s.tw*10));
+
+        // distance to mouse
+        const dxm = sx - mouse.x;
+        const dym = sy - mouse.y;
+        const dist = Math.sqrt(dxm*dxm + dym*dym);
+
+        // if within interactive radius, use tinted color (slight) and slightly stronger twinkle
+        const INTERACTIVE_RADIUS = 200; // increased interactive radius (px)
+        
+        const inInteractive = dist <= INTERACTIVE_RADIUS;
+
+        // pick rgb array for center/mid/edge
+        const centerRgbArr = inInteractive ? s.interactRgb : [255,255,255];
+        const centerColor = rgbToCss(centerRgbArr, Math.min(1, alpha + (inInteractive ? 0.45 : 0)));
+        const midColor = rgbToCss(centerRgbArr, inInteractive ? Math.min(0.9, alpha * 0.9) : (0.25 * alpha));
+        const edgeColor = rgbToCss(centerRgbArr, inInteractive ? Math.min(0.25, alpha * 0.25) : (0.02 * alpha));
+
+        // stronger visual boost when interactive
+        const interactiveBoost = inInteractive ? 1.3 : 1.0;
+
+        // STREAM / TAIL effect when launched: draw a faint streak opposite movement vector
+        if(launched){
+          const tailLength = Math.max(0, scatter * 0.35 * s.speed);
+          if(tailLength > 1){
+            const xEnd = sx - s.dx * tailLength;
+            const yEnd = sy - s.dy * tailLength;
+            const gradLine = ctx.createLinearGradient(xEnd, yEnd, sx, sy);
+            // tail fades from transparent to centerColor alpha
+            gradLine.addColorStop(0, `rgba(${centerRgbArr[0]},${centerRgbArr[1]},${centerRgbArr[2]},0)`);
+            gradLine.addColorStop(0.6, `rgba(${centerRgbArr[0]},${centerRgbArr[1]},${centerRgbArr[2]},${Math.max(0.12, (alpha*0.25))})`);
+            gradLine.addColorStop(1, `rgba(${centerRgbArr[0]},${centerRgbArr[1]},${centerRgbArr[2]},${Math.min(0.95, (alpha + 0.4))})`);
+            ctx.strokeStyle = gradLine;
+            ctx.lineWidth = Math.max(1, r * 1.8);
+            ctx.lineCap = 'round';
+            ctx.beginPath();
+            ctx.moveTo(xEnd, yEnd);
+            ctx.lineTo(sx, sy);
+            ctx.stroke();
+          }
+        }
+
+        // draw main star as radial gradient
+        ctx.beginPath();
+        const grad = ctx.createRadialGradient(sx, sy, 0, sx, sy, r*4*interactiveBoost);
+        grad.addColorStop(0, centerColor);
+        grad.addColorStop(0.25, midColor);
+        grad.addColorStop(1, edgeColor);
+        ctx.fillStyle = grad;
+        ctx.arc(sx, sy, r * 1.2 * tw * interactiveBoost, 0, Math.PI*2);
+        ctx.fill();
+      }
+
+      requestAnimationFrame(render);
+    }
+
+    function drawGrid(t){
+      // subtle circuit-like lines using composite
+      ctx.save();
+      ctx.globalAlpha = 0.06;
+      for(let i=0;i<6;i++){
+        ctx.beginPath();
+        const y = H * (i+1)/7 + Math.sin((i*100 + t*0.002))*6;
+        ctx.moveTo(0,y);
+        ctx.lineTo(W,y + Math.cos(t*0.001 + i)*8);
+        ctx.strokeStyle = '#7b88ff';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    requestAnimationFrame(render);
+
+    // re-init if resized significantly
+    let lastW = W, lastH = H;
+    setInterval(()=>{
+      if(Math.abs(window.innerWidth - lastW) > 60 || Math.abs(window.innerHeight - lastH) > 60){
+        lastW = window.innerWidth; lastH = window.innerHeight; resize(); center.x = W/2; center.y = H/2; initStars();
+      }
+    }, 800);
+
+  })();
+  </script>
+</body>
+</html>
