@@ -232,12 +232,15 @@
         const dy = mouse.y - btnCenterY;
         const dist = Math.sqrt(dx*dx + dy*dy);
         const MAX_DIST = 300; // max distance for interaction
-        const MAX_SCALE = 1.15; // max scale factor
-        let scale = 1;
+        // --- Параметры для изменения размера кнопки ---
+        const MIN_SCALE = 0.1; // Начальный размер (0.1 = 10%)
+        const MAX_SCALE = 1.0; // Конечный размер при приближении курсора (1.0 = 100%)
+        // ---------------------------------------------
+        let scale = MIN_SCALE;
         if(dist < MAX_DIST){
           const distProgress = 1 - (dist / MAX_DIST);
           const easedProgress = Math.pow(distProgress, 2);
-          scale = 1 + (MAX_SCALE - 1) * easedProgress;
+          scale = MIN_SCALE + (MAX_SCALE - MIN_SCALE) * easedProgress;
         }
         launchBtn.style.transform = `scale(${scale})`;
       }
