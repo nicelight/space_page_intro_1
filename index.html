@@ -1,3 +1,4 @@
+
 <!doctype html>
 <html lang="ru">
 <head>
@@ -20,7 +21,7 @@
     .overlay{position:absolute;inset:0;z-index:30;background:rgba(255,255,255,0);pointer-events:none;transition:background 0.1s linear}
 
     /* background image that appears after flight */
-    #bgImage{position:absolute;inset:0;z-index:35;background-image:url('bacCode.jpg');background-size:cover;background-position:center center;background-repeat:no-repeat;filter:blur(699px);opacity:1;pointer-events:none;transition:filter 2s ease, opacity 2s ease;transform-origin:center center;/* smooth fading of edges */-webkit-mask-image: radial-gradient(ellipse at center, rgba(0,0,0,1) 35%, rgba(0,0,0,0.8) 70%, rgba(0,0,0,0) 100%);mask-image: radial-gradient(ellipse at center, rgba(0,0,0,1) 35%, rgba(0,0,0,0.8) 70%, rgba(0,0,0,0) 100%);-webkit-mask-size:cover;mask-size:cover}
+    #bgImage{position:absolute;inset:0;z-index:35;background-image:url('bacCode.jpg');background-size:cover;background-position:center center;background-repeat:no-repeat;filter:blur(699px);opacity:0;pointer-events:none;transition:filter 2s ease, opacity 2s ease;transform-origin:center center;/* smooth fading of edges */-webkit-mask-image: radial-gradient(ellipse at center, rgba(0,0,0,1) 35%, rgba(0,0,0,0.8) 70%, rgba(0,0,0,0) 100%);mask-image: radial-gradient(ellipse at center, rgba(0,0,0,1) 35%, rgba(0,0,0,0.8) 70%, rgba(0,0,0,0) 100%);-webkit-mask-size:cover;mask-size:cover}
     #bgImage.bg-visible{filter:blur(0px);opacity:0.46}
 
     /* final link */
